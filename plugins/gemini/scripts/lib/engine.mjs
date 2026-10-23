@@ -45,8 +45,11 @@ export async function runEngineTurn(cwd, options = {}) {
   if (!useGeminiCli) {
     return agy.runEngineTurn(cwd, options);
   }
+  if (options.browser) {
+    throw new Error("Browser tasks need the Antigravity CLI engine (agy); unset GEMINI_COMPANION_ENGINE to use it.");
+  }
   // The Gemini CLI has no effort flag and no enforced schema; the review prompt already carries the schema.
-  const { effort, jsonSchemaPath, ...rest } = options;
+  const { effort, jsonSchemaPath, browser, ...rest } = options;
   const result = await geminiCli.runGeminiTurn(cwd, rest);
   return { ...result, structuredOutput: null };
 }

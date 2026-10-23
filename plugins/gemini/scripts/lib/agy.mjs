@@ -26,6 +26,7 @@ const INSTALL_HINT = "see https://antigravity.google/docs/getting-started?tab=cl
 const MAX_CAPTURE = 64 * 1024;
 const SAFE_TOKEN = /^[A-Za-z0-9._:/-]+$/;
 const WRITE_TOOLS = new Set(["write_to_file", "replace_file_content", "multi_replace_file_content", "sed_file", "notebook_edit"]);
+const BROWSER_TOOL_RE = /(^browser_|_browser_|_browser$)/;
 const VERIFICATION_RE =
   /\b(test|tests|lint|build|typecheck|type-check|check|verify|validate|pytest|jest|vitest|playwright|cargo test|npm test|pnpm test|yarn test|go test|tsc|eslint|ruff)\b/i;
 const AUTH_RE = /(not (logged|signed) in|unauthenticated|authenticate|login required|sign in)/i;
@@ -226,7 +227,15 @@ function describeToolUse(name, params = {}) {
       return `Searching the web: ${shorten(params.query ?? params.Query ?? JSON.stringify(params), 120)}`;
     case "invoke_subagent":
     case "define_subagent":
-      return `Subagent: ${shorten(JSON.stringify(params), 120)}`;
+      return /browser/i.test(String(params.TypeName ?? ""))
+        ? `Starting the browser agent: ${shorten(params.Prompt ?? params.Role ?? "", 120)}`
+        : `Subagent: ${shorten(JSON.stringify(params), 120)}`;
+    case "open_browser_url":
+      return `Opening ${shorten(params.Url ?? params.url ?? JSON.stringify(params), 120)}`;
+    case "call_mcp_tool":
+      return params.ServerName === "chrome-devtools"
+        ? `Browser: ${params.ToolName ?? "?"} ${shorten(params.Arguments?.url ?? "", 120)}`.trim()
+        : `MCP ${params.ServerName ?? "?"}: ${params.ToolName ?? "?"}`;
     default:
       return `Tool ${name}: ${shorten(JSON.stringify(params), 120)}`;
   }
@@ -238,6 +247,9 @@ function phaseForTool(name, params, write) {
   }
   if (name === "run_command") {
     return VERIFICATION_RE.test(String(params?.CommandLine ?? "")) ? "verifying" : write ? "running" : "investigating";
+  }
+  if (BROWSER_TOOL_RE.test(name) || (name === "call_mcp_tool" && params?.ServerName === "chrome-devtools")) {
+    return "browsing";
   }
   return "investigating";
 }
@@ -271,14 +283,17 @@ function emit(onProgress, payload) {
 
 /**
  * Runs one agy turn and returns the final answer.
- * Resuming uses --conversation <id>; read-only runs use --mode plan.
+ * Resuming uses --conversation <id>; read-only runs use --mode plan. Write and
+ * browser runs use --mode accept-edits (in plan mode agy only writes a plan
+ * instead of acting); the guard keeps browser runs from editing files.
  */
 export async function runEngineTurn(cwd, options = {}) {
   const binary = resolveAgyBinary();
   if (!binary) {
     throw new Error("agy not found. Run `/gemini:setup`.");
   }
-  const write = Boolean(options.write);
+  const browser = Boolean(options.browser);
+  const write = Boolean(options.write) && !browser;
   const prompt = String(options.prompt || options.defaultPrompt || "").trim();
   if (!prompt) {
     throw new Error("Empty prompt for agy.");
@@ -286,7 +301,7 @@ export async function runEngineTurn(cwd, options = {}) {
 
   ensureEnginePolicy();
 
-  const args = ["--output-format", "stream-json", "--input-format", "stream-json", "--mode", write ? "accept-edits" : "plan"];
+  const args = ["--output-format", "stream-json", "--input-format", "stream-json", "--mode", write || browser ? "accept-edits" : "plan"];
   if (options.resumeSessionId) {
     if (!SAFE_TOKEN.test(options.resumeSessionId)) {
       throw new Error(`Invalid conversation id: ${options.resumeSessionId}`);
@@ -317,6 +332,7 @@ export async function runEngineTurn(cwd, options = {}) {
   let rawNonJson = "";
   let lineBuffer = "";
   let timedOut = false;
+  let responseStep = null;
 
   emit(options.onProgress, {
     message: options.resumeSessionId ? `Resuming agy conversation ${options.resumeSessionId}.` : "Starting a new agy conversation.",
@@ -326,7 +342,7 @@ export async function runEngineTurn(cwd, options = {}) {
 
   const child = spawn(binary, args, {
     cwd,
-    env: { ...process.env, GEMINI_COMPANION_POLICY: write ? "write" : "read-only", NO_COLOR: "1" },
+    env: { ...process.env, GEMINI_COMPANION_POLICY: browser ? "browser" : write ? "write" : "read-only", NO_COLOR: "1" },
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true
   });
@@ -382,6 +398,11 @@ export async function runEngineTurn(cwd, options = {}) {
         const step = event.step_update ?? {};
         conversationId = step.conversation_id ?? conversationId;
         if (step.step_type === "agent_response" && typeof step.text_delta === "string") {
+          // A new response step (for example after a subagent reported back) starts a new segment.
+          if (step.step_index !== responseStep) {
+            flushSegment();
+            responseStep = step.step_index;
+          }
           segments[segments.length - 1] += step.text_delta;
         } else if (step.step_type === "tool") {
           handleTool(step);

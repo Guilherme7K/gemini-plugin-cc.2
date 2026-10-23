@@ -69,3 +69,37 @@ test("tools with effects outside the repository are denied", () => {
     assert.equal(decide("write", name, {})?.decision, "deny", name);
   }
 });
+
+test("browser tools are denied outside browser runs", () => {
+  for (const policy of ["read-only", "write"]) {
+    for (const name of ["open_browser_url", "browser_click_element", "capture_browser_screenshot", "execute_browser_javascript", "mcp_chrome_devtools_navigate_page"]) {
+      assert.equal(decide(policy, name, {})?.decision, "deny", `${policy} ${name}`);
+    }
+    assert.equal(decide(policy, "invoke_subagent", { TypeName: "browser" })?.decision, "deny", policy);
+  }
+});
+
+test("browser runs drive pages only through the chrome-devtools MCP server", () => {
+  assert.equal(decide("browser", "call_mcp_tool", { ServerName: "chrome-devtools", ToolName: "take_snapshot" }), null);
+  assert.equal(decide("browser", "call_mcp_tool", { ServerName: "chrome-devtools", ToolName: "new_page", Arguments: { url: "https://ads.google.com" } }), null);
+  assert.equal(decide("browser", "read_url_content", {}), null);
+  // agy's own browser tools attach to the user's main Chrome profile.
+  for (const name of ["open_browser_url", "browser_click_element", "read_browser_page", "mcp_chrome_devtools_new_page"]) {
+    assert.equal(decide("browser", name, {})?.decision, "deny", name);
+  }
+  assert.equal(decide("browser", "invoke_subagent", { TypeName: "browser", Role: "Browser Agent" })?.decision, "deny");
+  assert.equal(decide("browser", "call_mcp_tool", { ServerName: "github", ToolName: "create_issue" })?.decision, "deny");
+  assert.equal(decide("browser", "send_message", {})?.decision, "deny");
+  assert.equal(decide("browser", "send_message", { Recipient: "someone@example.com", Message: "hi" })?.decision, "deny");
+  assert.equal(decide("browser", "write_to_file", { TargetFile: path.join(workspace, "a.txt") })?.decision, "deny");
+  assert.equal(decide("browser", "run_command", run("git status")), null);
+  assert.equal(decide("browser", "run_command", run("npm test"))?.decision, "deny");
+});
+
+test("subagents may report back to the agent that started them", () => {
+  const recipient = "5298129d-16b1-487b-b1db-e67b24605af3";
+  for (const policy of ["read-only", "write", "browser"]) {
+    assert.equal(decide(policy, "send_message", { Recipient: recipient, Message: "done" }), null, policy);
+    assert.equal(decide(policy, "send_message", { Recipient: `"${recipient}"`, Message: "done" }), null, policy);
+  }
+});

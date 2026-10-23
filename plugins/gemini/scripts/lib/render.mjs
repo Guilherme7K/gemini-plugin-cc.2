@@ -123,6 +123,8 @@ function pushJobDetails(lines, job, options = {}) {
   }
   if (job.write) {
     lines.push("  Mode: write");
+  } else if (job.browser) {
+    lines.push("  Mode: browser");
   }
   if (options.showElapsed && job.elapsed) {
     lines.push(`  Elapsed: ${job.elapsed}`);

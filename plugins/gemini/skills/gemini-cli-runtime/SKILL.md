@@ -25,6 +25,7 @@ How the runtime runs Gemini:
 - Default engine: the Antigravity CLI (`agy`), signed in with the user's Google account. Since 2026-06-18 the Gemini CLI no longer serves personal accounts; it only runs with `GEMINI_COMPANION_ENGINE=gemini-cli` plus `GEMINI_API_KEY`.
 - Headless mode with `stream-json` input and output; each new task opens a conversation and resuming uses `--conversation <id>`.
 - Read-only runs use `--mode plan`. Write runs use `--mode accept-edits` (edits inside the repository are allowed).
+- Browser runs (`task --browser`, used by `/gemini:browser`, not by this subagent) use `--mode accept-edits` with the `browser` guard policy: no file edits, pages only through the `chrome-devtools` MCP server.
 - The `claude-companion-guard` guard (installed into agy by setup) only acts on companion runs: it blocks push, branch switching, history rewrites, edits under `.git/`, remote access, infrastructure, databases, reads and writes outside the repository, and commands outside the allowed list (read-only, tests, lint, typecheck, build, `git add`, `git commit`), always one command at a time. Gemini receives the reason for each block and keeps going.
 - Reviews use `--json-schema`, so the verdict comes back structured.
 - Every new task gets a short preamble with these rules and asks for a final report (what was done, touched files, verification, pending items). `--raw` turns the preamble off.

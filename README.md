@@ -11,6 +11,7 @@ and reviews; Gemini does the work in the background or in the foreground, and yo
 - `/gemini:review`: a read-only Gemini code review of your uncommitted changes or of your branch.
 - `/gemini:adversarial-review`: a review that tries to break the change and questions its design.
 - `/gemini:rescue`: hand a bug, an investigation or an implementation to Gemini (write access by default, `--read-only` to only investigate).
+- `/gemini:browser`: hand a web task to Gemini, which drives a dedicated Chrome profile through the `chrome-devtools` MCP server, in the background by default, so Claude keeps working while Gemini browses (see [Browser tasks](#browser-tasks)).
 - `/gemini:status`, `/gemini:result`, `/gemini:cancel`: manage jobs, including background ones.
 - `/gemini:setup`: check the engine, install the safety guard, run a live probe, and toggle the optional stop-time review gate.
 - The optional `gemini-monitor` mod: a live pane (`/gemini-panel`), a status line with the running job, a notification when a job finishes and, for background jobs, a prompt that wakes Claude up to review the result.
@@ -73,6 +74,8 @@ is not signed in yet, `/gemini:setup --login` opens a window running `agy` (on W
 - Hand off a problem: `/gemini:rescue the export job fails on empty months, find and fix the cause`.
 - Long task: `/gemini:rescue --background ...`, then `/gemini:status` or the `/gemini-panel` pane.
 - Follow up on the same Gemini conversation: `/gemini:rescue --resume apply the top fix`.
+- Browse in parallel: `/gemini:browser open http://localhost:3000, sign up with a test user and report any console errors`.
+  The result arrives through `/gemini:result <job-id>` (or the `gemini-monitor` notification); `--wait` runs it in the foreground.
 
 Options for `rescue` and the reviews: `--model pro|flash|<name from agy models>` and
 `--effort low|medium|high|xhigh|max`.
@@ -99,6 +102,9 @@ Headless agy cannot ask you for permission, so the plugin installs a small PreTo
 - Always blocked: push, branch switching, merge, rebase, reset, edits under `.git/`, remote access
   (ssh, scp), containers and infrastructure, direct database access and migrations, the GitHub CLI,
   package publishing, and reading or writing outside the repository.
+- Browser runs (`/gemini:browser`): the repository stays read-only, and pages are driven only through
+  the `chrome-devtools` MCP server. agy's own browser tools and its `/browser` subagent are denied in
+  every run.
 - Blocked calls get a reason back, so Gemini continues and reports what it could not do.
 
 Setup also adds one `permissions.allow` rule per allowlist entry to `~/.gemini/antigravity-cli/settings.json`
@@ -107,6 +113,33 @@ The plugin never uses `--dangerously-skip-permissions`.
 
 This is defense in depth, not a sandbox: for write tasks on important repositories, run them in an
 isolated git worktree and review the diff before you commit or push.
+
+## Browser tasks
+
+`/gemini:browser` does not use agy's `/browser` command: in agy 1.4 that command always attaches to your
+main Chrome profile (`--autoConnect`, see
+[google-antigravity/antigravity-cli#1217](https://github.com/google-antigravity/antigravity-cli/issues/1217)),
+and Chrome then asks "Allow remote debugging?" on every run. Instead, Gemini drives a dedicated Chrome
+profile through the `chrome-devtools` MCP server that agy reads from `~/.gemini/config/mcp_config.json`.
+One-time setup:
+
+1. Start Chrome with its own profile folder and a debugging port (Chrome refuses a debugging port on
+   your main profile folder), and sign in there to the sites Gemini should use:
+
+   ```text
+   chrome.exe --user-data-dir="%USERPROFILE%\.gemini\chrome-profiles\agy" --remote-debugging-port=9333
+   ```
+
+   Keep that window open while browser tasks run; a desktop shortcut with these arguments helps.
+2. Point the `chrome-devtools` server at it: in `~/.gemini/config/mcp_config.json`, set its `args` to the
+   `chrome-devtools-mcp.js` path followed by `"--browserUrl", "http://127.0.0.1:9333"`.
+3. Allow the sites Gemini may open, in `permissions.allow` of `~/.gemini/antigravity-cli/settings.json`,
+   for example `"execute_url(google.com)"`. Headless agy cannot ask, so a site without a rule is denied
+   and Gemini reports it.
+
+Gemini acts with whatever accounts are signed in to that profile. The guard decides which tools run, not
+what Gemini does on a page: the task prompt tells it not to submit forms, post, buy, change settings or
+type credentials unless the request says so, so write execution requests explicitly.
 
 ## Configuration
 
@@ -142,6 +175,8 @@ command picks them up, for example `"env": { "GEMINI_COMPANION_LANGUAGE": "pt-BR
 | `/gemini:setup` reports agy is not signed in | Run `/gemini:setup --login` (or `agy` in a terminal) and sign in once. |
 | A job shows as orphaned in `/gemini:status` | Its worker process ended without recording a result (reboot or external kill). Start it again. |
 | On Windows, `/gemini:cancel` or a timeout leaves Gemini running | Update to 0.1.1 or later (`/plugin marketplace update gemini-plugin-cc`); older versions sent taskkill through Git Bash, which broke its flags. |
+| `/gemini:browser` cannot connect to Chrome | Open the dedicated Chrome profile with `--remote-debugging-port=9333` (see [Browser tasks](#browser-tasks)) and check that `http://127.0.0.1:9333/json/version` answers. |
+| `/gemini:browser` says a site was denied by `execute_url` | Add `execute_url(<domain>)` to `permissions.allow` in `~/.gemini/antigravity-cli/settings.json`. |
 | `/plugin marketplace add` fails with `Filename too long` on Windows | The Claude Code config folder path is too long for Git; use a shorter path or enable `git config --global core.longpaths true`. |
 
 ## Uninstall
