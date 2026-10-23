@@ -133,9 +133,11 @@ One-time setup:
    Keep that window open while browser tasks run; a desktop shortcut with these arguments helps.
 2. Point the `chrome-devtools` server at it: in `~/.gemini/config/mcp_config.json`, set its `args` to the
    `chrome-devtools-mcp.js` path followed by `"--browserUrl", "http://127.0.0.1:9333"`.
-3. Allow the sites Gemini may open, in `permissions.allow` of `~/.gemini/antigravity-cli/settings.json`,
-   for example `"execute_url(google.com)"`. Headless agy cannot ask, so a site without a rule is denied
-   and Gemini reports it.
+3. In `permissions.allow` of `~/.gemini/antigravity-cli/settings.json`, allow the server's tools with
+   `"mcp(chrome-devtools/*)"` and the sites Gemini may open, for example `"execute_url(google.com)"`
+   (it also covers `ads.google.com`). Headless agy cannot ask: a site without a rule is denied and Gemini
+   reports it, but a tool without a rule ends the run with no answer. These rules also apply to your
+   interactive `agy` sessions.
 
 Gemini acts with whatever accounts are signed in to that profile. The guard decides which tools run, not
 what Gemini does on a page: the task prompt tells it not to submit forms, post, buy, change settings or
