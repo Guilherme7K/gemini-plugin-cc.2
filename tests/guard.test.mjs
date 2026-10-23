@@ -79,12 +79,15 @@ test("browser tools are denied outside browser runs", () => {
   }
 });
 
-test("browser runs drive pages only through the chrome-devtools MCP server", () => {
-  assert.equal(decide("browser", "call_mcp_tool", { ServerName: "chrome-devtools", ToolName: "take_snapshot" }), null);
-  assert.equal(decide("browser", "call_mcp_tool", { ServerName: "chrome-devtools", ToolName: "new_page", Arguments: { url: "https://ads.google.com" } }), null);
+test("read-only browser runs drive pages only through the chrome-devtools-ro MCP server", () => {
+  assert.equal(decide("browser", "call_mcp_tool", { ServerName: "chrome-devtools-ro", ToolName: "take_snapshot" }), null);
+  assert.equal(decide("browser", "call_mcp_tool", { ServerName: "chrome-devtools-ro", ToolName: "new_page", Arguments: { url: "https://ads.google.com" } }), null);
   assert.equal(decide("browser", "read_url_content", {}), null);
+  // The profile that can make changes is only for execution runs.
+  assert.equal(decide("browser", "call_mcp_tool", { ServerName: "chrome-devtools", ToolName: "click" })?.decision, "deny");
+  assert.equal(decide("browser", "call_mcp_tool", { ServerName: "\"chrome-devtools\"", ToolName: "click" })?.decision, "deny");
   // agy's own browser tools attach to the user's main Chrome profile.
-  for (const name of ["open_browser_url", "browser_click_element", "read_browser_page", "mcp_chrome_devtools_new_page"]) {
+  for (const name of ["open_browser_url", "browser_click_element", "read_browser_page", "mcp_chrome_devtools_new_page", "mcp_chrome_devtools_ro_click"]) {
     assert.equal(decide("browser", name, {})?.decision, "deny", name);
   }
   assert.equal(decide("browser", "invoke_subagent", { TypeName: "browser", Role: "Browser Agent" })?.decision, "deny");
@@ -96,9 +99,26 @@ test("browser runs drive pages only through the chrome-devtools MCP server", () 
   assert.equal(decide("browser", "run_command", run("npm test"))?.decision, "deny");
 });
 
+test("browser execution runs drive pages only through the chrome-devtools MCP server", () => {
+  assert.equal(decide("browser-execute", "call_mcp_tool", { ServerName: "chrome-devtools", ToolName: "click" }), null);
+  assert.equal(decide("browser-execute", "call_mcp_tool", { ServerName: "chrome-devtools-ro", ToolName: "click" })?.decision, "deny");
+  assert.equal(decide("browser-execute", "call_mcp_tool", { ServerName: "github", ToolName: "create_issue" })?.decision, "deny");
+  assert.equal(decide("browser-execute", "open_browser_url", {})?.decision, "deny");
+  assert.equal(decide("browser-execute", "write_to_file", { TargetFile: path.join(workspace, "a.txt") })?.decision, "deny");
+  assert.equal(decide("browser-execute", "run_command", run("npm test"))?.decision, "deny");
+});
+
+test("chrome-devtools servers are denied outside browser runs", () => {
+  for (const policy of ["read-only", "write"]) {
+    for (const server of ["chrome-devtools", "chrome-devtools-ro"]) {
+      assert.equal(decide(policy, "call_mcp_tool", { ServerName: server, ToolName: "take_snapshot" })?.decision, "deny", `${policy} ${server}`);
+    }
+  }
+});
+
 test("subagents may report back to the agent that started them", () => {
   const recipient = "5298129d-16b1-487b-b1db-e67b24605af3";
-  for (const policy of ["read-only", "write", "browser"]) {
+  for (const policy of ["read-only", "write", "browser", "browser-execute"]) {
     assert.equal(decide(policy, "send_message", { Recipient: recipient, Message: "done" }), null, policy);
     assert.equal(decide(policy, "send_message", { Recipient: `"${recipient}"`, Message: "done" }), null, policy);
   }

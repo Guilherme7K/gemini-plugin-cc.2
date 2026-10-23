@@ -1,13 +1,17 @@
 // PreToolUse guard of the Claude Code gemini plugin for the Antigravity CLI (agy).
 //
 // It only acts when agy was started by the companion, which sets
-// GEMINI_COMPANION_POLICY=read-only|write|browser. Otherwise it prints nothing: empty
-// output is agy's only neutral hook answer ({} or an empty decision count as a deny).
+// GEMINI_COMPANION_POLICY=read-only|write|browser|browser-execute. Otherwise it prints
+// nothing: empty output is agy's only neutral hook answer ({} or an empty decision
+// count as a deny).
 //
-// The browser policy is read-only for the repository and drives web pages only
-// through the user's chrome-devtools MCP server (call_mcp_tool). agy's own
-// browser tools and its `/browser` subagent stay denied: agy 1.4 hardcodes them
-// to attach to the user's main Chrome profile.
+// The browser policies are read-only for the repository and drive web pages only
+// through one of the user's chrome-devtools MCP servers (call_mcp_tool): `browser`
+// (the default) only reaches `chrome-devtools-ro`, a Chrome profile signed in with
+// a read-only account; `browser-execute` only reaches `chrome-devtools`, the
+// profile that can make changes. agy's own browser tools and its `/browser`
+// subagent stay denied: agy 1.4 hardcodes them to attach to the user's main
+// Chrome profile.
 //
 // Headless agy cannot ask for permission (it denies and ends the turn with no
 // answer), so the guard denies first, with a reason, everything that is not
@@ -59,7 +63,7 @@ const BLOCKED_TOOLS = new Map([
 ]);
 
 // agy's own browser tools (the `/browser` subagent drives them), and the MCP
-// server the browser policy allows instead.
+// server each browser policy allows instead.
 const BROWSER_TOOLS = new Set([
   "open_browser_url",
   "browser_subagent",
@@ -70,9 +74,11 @@ const BROWSER_TOOLS = new Set([
   "capture_browser_console_logs",
   "click_browser_pixel"
 ]);
-const BROWSER_MCP_SERVER = "chrome-devtools";
+const BROWSER_MCP_SERVERS = { browser: "chrome-devtools-ro", "browser-execute": "chrome-devtools" };
+const BROWSER_MCP_SERVER = BROWSER_MCP_SERVERS[policy] ?? "";
+const isBrowserPolicy = Boolean(BROWSER_MCP_SERVER);
 // Subagents get chrome-devtools tools under their own names (mcp_chrome_devtools_list_pages, ...).
-const BROWSER_MCP_TOOL_RE = /^mcp_chrome[-_]devtools_/i;
+const BROWSER_MCP_TOOL_RE = /^mcp_chrome[-_]devtools([-_]ro)?_/i;
 const CONVERSATION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Some args arrive JSON-encoded a second time ("\"value\"").
@@ -189,7 +195,7 @@ function checkCommand(command, allowed, listLabel, workspaces) {
 
 function main() {
   const input = readInput();
-  if (policy !== "read-only" && policy !== "write" && policy !== "browser") {
+  if (policy !== "read-only" && policy !== "write" && !isBrowserPolicy) {
     return;
   }
 
@@ -199,18 +205,29 @@ function main() {
 
   if (isBrowserTool(name, args)) {
     deny(
-      policy === "browser"
+      isBrowserPolicy
         ? `${name} attaches to the user's main Chrome. Use the ${BROWSER_MCP_SERVER} MCP server through call_mcp_tool instead.`
         : `${name} drives the browser, which is only allowed in browser runs (/gemini:browser). Continue without it.`
     );
     return;
   }
-  if (policy === "browser") {
+  if (isBrowserPolicy) {
     if (name === "read_url_content") {
       return;
     }
-    if (name === "call_mcp_tool" && argText(args.ServerName ?? args.serverName) === BROWSER_MCP_SERVER) {
-      return;
+    if (name === "call_mcp_tool") {
+      const server = argText(args.ServerName ?? args.serverName);
+      if (server === BROWSER_MCP_SERVER) {
+        return;
+      }
+      if (Object.values(BROWSER_MCP_SERVERS).includes(server)) {
+        deny(
+          policy === "browser"
+            ? `${server} is the Chrome profile that can make changes; this is a read-only browser run. Use ${BROWSER_MCP_SERVER} and only read.`
+            : `${server} is the read-only Chrome profile; this execution run uses ${BROWSER_MCP_SERVER}.`
+        );
+        return;
+      }
     }
   }
   if (isAgentMessage(name, args)) {
@@ -238,7 +255,7 @@ function main() {
     }
   }
 
-  if (policy === "read-only" || policy === "browser") {
+  if (policy === "read-only" || isBrowserPolicy) {
     if (WRITE_TOOLS.has(name)) {
       deny(`this is a ${policy} run; do not edit files, only investigate and answer.`);
       return;

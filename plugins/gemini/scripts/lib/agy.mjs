@@ -27,6 +27,8 @@ const MAX_CAPTURE = 64 * 1024;
 const SAFE_TOKEN = /^[A-Za-z0-9._:/-]+$/;
 const WRITE_TOOLS = new Set(["write_to_file", "replace_file_content", "multi_replace_file_content", "sed_file", "notebook_edit"]);
 const BROWSER_TOOL_RE = /(^browser_|_browser_|_browser$)/;
+// Read-only browser runs drive chrome-devtools-ro; execution runs drive chrome-devtools.
+const BROWSER_MCP_SERVERS = new Set(["chrome-devtools", "chrome-devtools-ro"]);
 const VERIFICATION_RE =
   /\b(test|tests|lint|build|typecheck|type-check|check|verify|validate|pytest|jest|vitest|playwright|cargo test|npm test|pnpm test|yarn test|go test|tsc|eslint|ruff)\b/i;
 const AUTH_RE = /(not (logged|signed) in|unauthenticated|authenticate|login required|sign in)/i;
@@ -233,7 +235,7 @@ function describeToolUse(name, params = {}) {
     case "open_browser_url":
       return `Opening ${shorten(params.Url ?? params.url ?? JSON.stringify(params), 120)}`;
     case "call_mcp_tool":
-      return params.ServerName === "chrome-devtools"
+      return BROWSER_MCP_SERVERS.has(params.ServerName)
         ? `Browser: ${params.ToolName ?? "?"} ${shorten(params.Arguments?.url ?? "", 120)}`.trim()
         : `MCP ${params.ServerName ?? "?"}: ${params.ToolName ?? "?"}`;
     default:
@@ -248,7 +250,7 @@ function phaseForTool(name, params, write) {
   if (name === "run_command") {
     return VERIFICATION_RE.test(String(params?.CommandLine ?? "")) ? "verifying" : write ? "running" : "investigating";
   }
-  if (BROWSER_TOOL_RE.test(name) || (name === "call_mcp_tool" && params?.ServerName === "chrome-devtools")) {
+  if (BROWSER_TOOL_RE.test(name) || (name === "call_mcp_tool" && BROWSER_MCP_SERVERS.has(params?.ServerName))) {
     return "browsing";
   }
   return "investigating";
@@ -293,6 +295,7 @@ export async function runEngineTurn(cwd, options = {}) {
     throw new Error("agy not found. Run `/gemini:setup`.");
   }
   const browser = Boolean(options.browser);
+  const execute = browser && Boolean(options.execute);
   const write = Boolean(options.write) && !browser;
   const prompt = String(options.prompt || options.defaultPrompt || "").trim();
   if (!prompt) {
@@ -342,7 +345,11 @@ export async function runEngineTurn(cwd, options = {}) {
 
   const child = spawn(binary, args, {
     cwd,
-    env: { ...process.env, GEMINI_COMPANION_POLICY: browser ? "browser" : write ? "write" : "read-only", NO_COLOR: "1" },
+    env: {
+      ...process.env,
+      GEMINI_COMPANION_POLICY: execute ? "browser-execute" : browser ? "browser" : write ? "write" : "read-only",
+      NO_COLOR: "1"
+    },
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true
   });

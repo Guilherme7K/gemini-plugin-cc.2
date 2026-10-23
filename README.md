@@ -106,8 +106,8 @@ Headless agy cannot ask you for permission, so the plugin installs a small PreTo
   (ssh, scp), containers and infrastructure, direct database access and migrations, the GitHub CLI,
   package publishing, and reading or writing outside the repository.
 - Browser runs (`/gemini:browser`): the repository stays read-only, and pages are driven only through
-  the `chrome-devtools` MCP server. agy's own browser tools and its `/browser` subagent are denied in
-  every run.
+  the `chrome-devtools-ro` MCP server, or `chrome-devtools` with `--execute`. agy's own browser tools
+  and its `/browser` subagent are denied in every run.
 - Blocked calls get a reason back, so Gemini continues and reports what it could not do.
 
 Setup also adds one `permissions.allow` rule per allowlist entry to `~/.gemini/antigravity-cli/settings.json`
@@ -145,6 +145,20 @@ One-time setup:
 Gemini acts with whatever accounts are signed in to that profile. The guard decides which tools run, not
 what Gemini does on a page: the task prompt tells it not to submit forms, post, buy, change settings or
 type credentials unless the request says so, so write execution requests explicitly.
+
+### Read-only and execution profiles
+
+To make reads safe whatever Gemini clicks, keep two dedicated profiles and let the site enforce the
+difference:
+
+- `chrome-devtools-ro` (for example port 9334): a profile signed in with an account that only has
+  read access (in Google Ads, a user with "Read only" access). Every `/gemini:browser` run uses it.
+- `chrome-devtools` (port 9333): the profile that can make changes. Only `/gemini:browser --execute`
+  uses it.
+
+Add both servers to `mcp_config.json` (same `args`, different `--browserUrl`) and allow both with
+`"mcp(chrome-devtools/*)"` and `"mcp(chrome-devtools-ro/*)"`. The guard denies the other profile's
+server in each mode, and an execution run cannot resume a conversation.
 
 ## Configuration
 

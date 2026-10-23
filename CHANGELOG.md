@@ -10,6 +10,10 @@
   the user's main Chrome profile); it previously blocked only three of them.
 - Fix: subagents could not report back to the agent that started them, because the guard blocked
   `send_message`; messages addressed to an agy conversation id are now allowed.
+- Browser tasks are read-only by default: the `browser` policy only reaches the `chrome-devtools-ro`
+  MCP server (a profile signed in with a read-only account). The new `--execute` flag uses the
+  `browser-execute` policy, which only reaches `chrome-devtools`; it cannot be combined with
+  `--resume`. Browser reports now state the account, date range, filters and whether every row was seen.
 - Browser tasks default to Gemini 3.8 Flash High; `--model` still overrides it.
 - Model aliases follow agy 1.4.6: `pro` (and new `argon`) is Gemini 4 Argon High, since
   gemini-3.1-pro-high is no longer offered; new `opus` and `sonnet` aliases for the Claude models in agy.
