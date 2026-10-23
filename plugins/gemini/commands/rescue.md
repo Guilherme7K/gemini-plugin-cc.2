@@ -1,6 +1,6 @@
 ---
 description: Delegate investigation, an explicit fix request, or follow-up work to the Gemini rescue subagent
-argument-hint: "[--background|--wait] [--resume|--fresh] [--read-only] [--model <pro|flash|name>] [--effort <low|medium|high|xhigh|max>] [what Gemini should investigate, solve, or continue]"
+argument-hint: "[--background|--wait] [--resume|--fresh] [--read-only] [--model <pro|flash|opus|sonnet|name>] [--effort <low|medium|high|xhigh|max>] [what Gemini should investigate, solve, or continue]"
 allowed-tools: Bash(node:*), AskUserQuestion, Agent
 ---
 

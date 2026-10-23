@@ -77,7 +77,10 @@ is not signed in yet, `/gemini:setup --login` opens a window running `agy` (on W
 - Browse in parallel: `/gemini:browser open http://localhost:3000, sign up with a test user and report any console errors`.
   The result arrives through `/gemini:result <job-id>` (or the `gemini-monitor` notification); `--wait` runs it in the foreground.
 
-Options for `rescue` and the reviews: `--model pro|flash|<name from agy models>` and
+Browser tasks use Gemini 3.8 Flash High unless you pass `--model`.
+
+Options for `rescue`, `browser` and the reviews: `--model pro|flash|opus|sonnet|<name from agy models>`
+(`pro` is Gemini 4 Argon High; `opus` and `sonnet` are the Claude models agy offers) and
 `--effort low|medium|high|xhigh|max`.
 
 ## How it works

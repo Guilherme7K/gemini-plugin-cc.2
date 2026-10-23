@@ -1,6 +1,6 @@
 ---
 description: Hand a web browsing task to Gemini, which drives a dedicated Chrome profile, in the background by default
-argument-hint: "[--wait|--background] [--resume|--fresh] [--model <pro|flash|name>] [--effort <low|medium|high|xhigh|max>] [what Gemini should do in the browser]"
+argument-hint: "[--wait|--background] [--resume|--fresh] [--model <flash|pro|opus|sonnet|name>] [--effort <low|medium|high|xhigh|max>] [what Gemini should do in the browser]"
 allowed-tools: Bash(node:*), Write
 ---
 
@@ -16,7 +16,7 @@ Build one `task --browser` command from the arguments:
 - `--background` (the default when neither `--background` nor `--wait` is given): add `--background`. The companion detaches the run itself and returns at once.
 - `--wait`: do not add `--background`; run in the foreground.
 - `--resume`: add `--resume-last`. `--fresh`: add nothing. Without either, start a fresh run.
-- Keep `--model <value>` and `--effort <value>` only when the user gave them.
+- Keep `--model <value>` and `--effort <value>` only when the user gave them. Without `--model`, browser runs use Gemini 3.8 Flash High; pass `--model pro` (Gemini 4 Argon High), `opus` or `sonnet` (Claude through agy) only for complex pages or when Flash failed.
 - Strip `--wait`, `--background`, `--resume` and `--fresh` from the task text. Keep the rest of the task text exactly as written.
 - If the task text contains quotes or is longer than one line, write it to a temporary file and pass `--prompt-file <path>` instead of putting it on the command line.
 

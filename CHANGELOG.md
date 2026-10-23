@@ -10,6 +10,9 @@
   the user's main Chrome profile); it previously blocked only three of them.
 - Fix: subagents could not report back to the agent that started them, because the guard blocked
   `send_message`; messages addressed to an agy conversation id are now allowed.
+- Browser tasks default to Gemini 3.8 Flash High; `--model` still overrides it.
+- Model aliases follow agy 1.4.6: `pro` (and new `argon`) is Gemini 4 Argon High, since
+  gemini-3.1-pro-high is no longer offered; new `opus` and `sonnet` aliases for the Claude models in agy.
 - Requires the Antigravity CLI engine; agy 1.4.6 verified on Windows 11.
 
 ## 0.1.2 - 2026-10-07

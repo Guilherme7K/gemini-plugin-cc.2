@@ -69,9 +69,14 @@ const REVIEW_MAX_INLINE_FILES = 40;
 const REVIEW_MAX_INLINE_DIFF_BYTES = 400 * 1024;
 // Short aliases for agy models; full names pass through (`agy models` lists them).
 const AGY_MODEL_ALIASES = new Map([
-  ["pro", "gemini-3.1-pro-high"],
-  ["flash", "gemini-3.8-flash-high"]
+  ["pro", "gemini-4-argon-high"],
+  ["argon", "gemini-4-argon-high"],
+  ["flash", "gemini-3.8-flash-high"],
+  ["opus", "claude-opus-5-5-high"],
+  ["sonnet", "claude-sonnet-5-5-high"]
 ]);
+// Browsing and reading pages rarely need a stronger model, and Flash leaves most of the quota.
+const DEFAULT_BROWSER_MODEL = "flash";
 
 function printUsage() {
   console.log(
@@ -630,7 +635,7 @@ async function handleTask(argv) {
 
   const cwd = resolveCommandCwd(options);
   const workspaceRoot = resolveCommandWorkspace(options);
-  const model = normalizeRequestedModel(options.model);
+  let model = normalizeRequestedModel(options.model);
   const effort = normalizeEffort(options.effort);
   resolveResponseLanguage();
   const prompt = readTaskPrompt(cwd, options, positionals);
@@ -642,6 +647,9 @@ async function handleTask(argv) {
     throw new Error("Choose either --resume/--resume-last or --fresh.");
   }
   const browser = Boolean(options.browser);
+  if (browser && !model && ENGINE === "agy") {
+    model = normalizeRequestedModel(DEFAULT_BROWSER_MODEL);
+  }
   if (browser && options.write) {
     throw new Error("Choose either --write or --browser: browser runs cannot edit files.");
   }

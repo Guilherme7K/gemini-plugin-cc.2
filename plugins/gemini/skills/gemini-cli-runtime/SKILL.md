@@ -34,7 +34,7 @@ How the runtime runs Gemini:
 Command selection:
 - Use exactly one `task` invocation per rescue handoff.
 - If the forwarded request includes `--background` or `--wait`, treat it as Claude-side execution control: forward `--background` to `task`; strip `--wait`.
-- `--model`: `pro` (gemini-3.1-pro-high), `flash` (gemini-3.8-flash-high), or a full name from `agy models`.
+- `--model`: `pro` or `argon` (gemini-4-argon-high), `flash` (gemini-3.8-flash-high), `opus` (claude-opus-5-5-high), `sonnet` (claude-sonnet-5-5-high), or a full name from `agy models`.
 - `--effort`: `low`, `medium`, `high`, `xhigh` or `max`.
 - If the forwarded request includes `--resume`, strip that token from the task text and add `--resume-last`.
 - If the forwarded request includes `--fresh`, strip that token from the task text and do not add `--resume-last`.
